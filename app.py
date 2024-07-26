@@ -3,7 +3,6 @@ import warnings
 import pandas as pd
 import numpy as np
 import gradio as gr
-import streamlit as st
 from sklearn.model_selection import train_test_split
 from keras.src.saving import load_model
 
@@ -36,6 +35,7 @@ df1['Symptom'] = df1['Symptom'].str.replace('_', ' ')
 
 vals = df.values
 symptoms = df1['Symptom'].unique()
+symptoms_list_for_ch = df1['Symptom'].unique()
 
 for i in range(len(symptoms)):
     vals[vals == symptoms[i]] = df1[df1['Symptom'] == symptoms[i]]['weight'].values[0]
@@ -76,31 +76,36 @@ def predict_possible_diseases(symptoms_list, top_n=5) -> list[tuple]:
     top_indices = np.argsort(pred_prob[0])[::-1][:top_n]
     top_diseases = label_encoder.inverse_transform(top_indices)
     top_probabilities = pred_prob[0][top_indices]
+    
+    # convert the probabilities to percentages
+    top_probabilities = [f'{p * 100:.2f}%' for p in top_probabilities]
 
     # Return the top N diseases and their probabilities
     return list(zip(top_diseases, top_probabilities))
 
 
+import gradio as gr
 # Define Gradio interface
-def gradio_interface(symptoms: str) -> object:
-    symptoms_list = [s.strip() for s in symptoms.split(',')]
-    return predict_possible_diseases(symptoms_list, top_n=5)
+def gradio_interface(symptoms):
+    return predict_possible_diseases(symptoms, top_n=5)
 
+# inputs (a checkbox group)
+inputs = gr.CheckboxGroup(list(symptoms_list_for_ch), label="Symptoms", info="Select Symptoms")
 
-# Create the Gradio interface
-examples: list[list[str]] = [
-    ["itching, skin rash, nodal skin eruptions"],
-    ["chest pain, phlegm, runny nose, high fever, throat irritation, congestion, redness of eyes"],
-]
+# beautify the output by using a list to display all the diseases
+outputs = gr.Dataframe(
+    headers=["Disease", "Probability"], 
+    label="Diseases",
+)
 
 # Create the Gradio interface
 iface = gr.Interface(
     fn=gradio_interface,
-    inputs=gr.Textbox(lines=2, placeholder="Enter symptoms separated by commas..."),
-    outputs="json",
+    allow_flagging='manual',
+    inputs=inputs,
+    outputs=outputs,
     title="Disease Prediction from Symptoms",
-    description="Enter symptoms separated by commas to predict possible diseases along with their probabilities.",
-    examples=examples
+    description="Select Sypmtoms to predict possible diseases along with their probabilities.",
 )
 
 # Launch the Gradio interface
